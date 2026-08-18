@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Gestão do Negócio</title>
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#f59e0b" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div id="login-screen" class="screen">
+  <div class="login-card">
+    <h1>📦 Gestão do Negócio</h1>
+    <p>Digite a senha do app (a mesma configurada no Vercel como <code>APP_PASSWORD</code>)</p>
+    <input id="password-input" type="password" placeholder="Senha" />
+    <button id="login-btn">Entrar</button>
+    <p id="login-error" class="error"></p>
+  </div>
+</div>
+
+<div id="app-screen" class="screen hidden">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-title">📦 Gestão</div>
+      <nav class="sidebar-nav">
+        <button class="tab-btn active" data-tab="resumo">📊 Resumo</button>
+        <button class="tab-btn" data-tab="caixa">💰 Caixa</button>
+        <button class="tab-btn" data-tab="estoque">📦 Estoque</button>
+        <button class="tab-btn" data-tab="pedidos">🧾 Pedidos</button>
+      </nav>
+      <button id="sidebar-logout-btn" class="sidebar-logout-btn" title="Sair">⎋ Sair</button>
+    </aside>
+
+    <div class="content-area">
+      <header>
+        <h1>📦 Gestão</h1>
+        <button id="logout-btn" title="Sair">⎋</button>
+      </header>
+
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="resumo">Resumo</button>
+        <button class="tab-btn" data-tab="caixa">Caixa</button>
+        <button class="tab-btn" data-tab="estoque">Estoque</button>
+        <button class="tab-btn" data-tab="pedidos">Pedidos</button>
+      </nav>
+
+      <main>
+        <section id="tab-resumo" class="tab-content active">
+          <div class="balance-summary">
+            <div class="balance-stat">
+              <span class="balance-label">Saldo em caixa</span>
+              <span id="resumo-saldo" class="balance-value">—</span>
+            </div>
+            <div class="balance-stat">
+              <span class="balance-label">Valor em estoque</span>
+              <span id="resumo-estoque" class="balance-value">—</span>
+            </div>
+            <div class="balance-stat">
+              <span class="balance-label">Pedidos (30 dias)</span>
+              <span id="resumo-pedidos" class="balance-value">—</span>
+            </div>
+          </div>
+
+          <div id="estoque-baixo-card" class="card hidden">
+            <h2>⚠️ Estoque baixo</h2>
+            <div id="estoque-baixo-list"></div>
+          </div>
+
+          <div class="card">
+            <h2>Caixa — últimos 30 dias</h2>
+            <canvas id="caixa-chart" height="220"></canvas>
+            <div id="caixa-chart-empty" class="empty hidden">Sem movimentação ainda</div>
+          </div>
+        </section>
+
+        <section id="tab-caixa" class="tab-content">
+          <div class="balance-summary balance-1col">
+            <div class="balance-stat">
+              <span class="balance-label">Saldo atual</span>
+              <span id="caixa-saldo" class="balance-value">R$ 0,00</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Lançar movimentação</h2>
+            <select id="caixa-tipo-input">
+              <option value="entrada">Entrada</option>
+              <option value="saida">Saída</option>
+            </select>
+            <input type="text" id="caixa-descricao-input" placeholder="Descrição" />
+            <input type="number" step="0.01" id="caixa-valor-input" placeholder="Valor" />
+            <button id="caixa-add-btn" class="primary-btn">Lançar</button>
+          </div>
+
+          <div class="card">
+            <h2>Movimentações</h2>
+            <div id="caixa-list"></div>
+          </div>
+        </section>
+
+        <section id="tab-estoque" class="tab-content">
+          <div class="card">
+            <div class="section-header">
+              <h2>Adicionar produto</h2>
+            </div>
+            <input type="text" id="estoque-produto-input" placeholder="Nome do produto" />
+            <input type="text" id="estoque-categoria-input" placeholder="Categoria" />
+            <div class="row-grid">
+              <input type="number" id="estoque-quantidade-input" placeholder="Quantidade" />
+              <input type="number" id="estoque-minimo-input" placeholder="Estoque mínimo (alerta)" />
+            </div>
+            <div class="row-grid">
+              <input type="number" step="0.01" id="estoque-custo-input" placeholder="Preço de custo" />
+              <input type="number" step="0.01" id="estoque-venda-input" placeholder="Preço de venda" />
+            </div>
+            <button id="estoque-add-btn" class="primary-btn">Adicionar produto</button>
+          </div>
+
+          <div class="card">
+            <h2>Produtos</h2>
+            <div class="table-scroll">
+              <table class="data-table" id="estoque-table">
+                <thead>
+                  <tr>
+                    <th>Produto</th><th>Categoria</th><th>Qtd</th><th>Custo</th><th>Venda</th><th>Mín.</th><th></th>
+                  </tr>
+                </thead>
+                <tbody id="estoque-rows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-pedidos" class="tab-content">
+          <div class="card">
+            <h2>Novo pedido</h2>
+            <input type="text" id="pedido-cliente-input" placeholder="Cliente (opcional)" />
+            <select id="pedido-produto-select"></select>
+            <div class="row-grid">
+              <input type="number" id="pedido-quantidade-input" placeholder="Quantidade" value="1" />
+              <button id="pedido-add-item-btn" class="secondary-btn" style="margin-bottom: 0;">+ Item</button>
+            </div>
+            <div id="pedido-itens-list"></div>
+            <p class="hint">Total: <strong id="pedido-total">R$ 0,00</strong></p>
+            <select id="pedido-forma-pagamento-input">
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="Pix">Pix</option>
+              <option value="Cartão">Cartão</option>
+            </select>
+            <button id="pedido-finalizar-btn" class="primary-btn">Finalizar pedido</button>
+            <p id="pedido-error" class="error"></p>
+          </div>
+
+          <div class="card">
+            <h2>Pedidos recentes</h2>
+            <div id="pedidos-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
