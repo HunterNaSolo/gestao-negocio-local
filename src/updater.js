@@ -132,10 +132,18 @@ async function downloadAndApplyUpdate(release) {
 
   copyRecursiveExcludingData(sourceDir, ROOT_DIR);
 
+  // PROTEÇÃO: não confia só no version.json que veio dentro do zip (se
+  // alguém esquecer de atualizar esse número antes de zipar, isso causaria
+  // um loop infinito de "atualização" pra sempre). Em vez disso, grava a
+  // versão baseada na tag da própria Release do GitHub, que é a fonte da
+  // verdade real.
+  const tagVersion = release.tag_name.replace(/^v/, "");
+  fs.writeFileSync(path.join(ROOT_DIR, "version.json"), JSON.stringify({ version: tagVersion }, null, 2));
+
   fs.rmSync(tempZipPath, { force: true });
   fs.rmSync(extractDir, { recursive: true, force: true });
 
-  console.log("✔ Atualização aplicada! Reinicie o programa pra usar a versão nova.");
+  console.log(`✔ Atualização aplicada (versão ${tagVersion})! Reinicie o programa pra usar a versão nova.`);
   return true;
 }
 
