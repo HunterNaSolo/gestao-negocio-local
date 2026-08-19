@@ -496,11 +496,13 @@ $("#pedido-cupom-select").addEventListener("change", () => {
 });
 
 // ---------- Verificação de cliente fiel (pelo CPF) ----------
+let cpfFidelidadeRecusado = null;
+
 $("#pedido-cpf-input").addEventListener("input", () => {
   const cpf = $("#pedido-cpf-input").value.trim();
   const avisoEl = $("#pedido-fiel-aviso");
 
-  if (!cpf) {
+  if (!cpf || cpf === cpfFidelidadeRecusado) {
     avisoEl.classList.add("hidden");
     return;
   }
@@ -514,12 +516,19 @@ $("#pedido-cpf-input").addEventListener("input", () => {
   avisoEl.classList.remove("hidden");
   avisoEl.innerHTML = `
     Esse cliente já comprou <strong>${cliente.totalCompras}x</strong>! Deseja premiá-lo com um cupom de fidelidade (5% de desconto)?
-    <button id="aplicar-fidelidade-btn">Aplicar cupom de 5% de fidelidade</button>
+    <div class="loyalty-actions">
+      <button id="aplicar-fidelidade-btn" class="loyalty-yes">Sim, aplicar 5%</button>
+      <button id="recusar-fidelidade-btn" class="loyalty-no">Não, obrigado</button>
+    </div>
   `;
   $("#aplicar-fidelidade-btn").addEventListener("click", () => {
     state.pedidoCupomAplicado = { codigo: "FIDELIDADE5", percentual: 5 };
     $("#pedido-cupom-select").value = ""; // é um cupom especial, fora da lista normal
     updatePedidoTotal();
+    avisoEl.classList.add("hidden");
+  });
+  $("#recusar-fidelidade-btn").addEventListener("click", () => {
+    cpfFidelidadeRecusado = cpf; // não pergunta de novo enquanto o CPF não mudar
     avisoEl.classList.add("hidden");
   });
 });
@@ -775,6 +784,64 @@ function unlockAdminAreas() {
   $("#cupons-lock-card").classList.add("hidden");
   $("#cupons-content").classList.remove("hidden");
 }
+
+// ---------- Backup ----------
+$("#backup-btn").addEventListener("click", async () => {
+  const statusEl = $("#backup-status");
+  statusEl.textContent = "Preparando o backup...";
+
+  try {
+    const res = await fetch("/api/backup", {
+      headers: {
+        "x-app-password": getPassword(),
+        "x-admin-password": state.adminPassword || "",
+      },
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Erro do servidor (HTTP ${res.status})`);
+    }
+
+    const blob = await res.blob();
+    const nomeArquivo = `backup-negocio-${new Date().toISOString().slice(0, 10)}.db`;
+
+    if (window.showSaveFilePicker) {
+      // Chrome/Edge: abre a janela de verdade de "Salvar como", com escolha de pasta
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: nomeArquivo,
+          types: [{ description: "Banco de dados", accept: { "application/octet-stream": [".db"] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        statusEl.textContent = "✔ Backup salvo com sucesso!";
+        return;
+      } catch (pickerErr) {
+        if (pickerErr.name === "AbortError") {
+          statusEl.textContent = ""; // a pessoa cancelou a janela, sem problema
+          return;
+        }
+        console.error(pickerErr);
+        // se der outro erro no seletor, cai pro jeito simples abaixo
+      }
+    }
+
+    // Firefox/Safari (ou fallback): baixa pela pasta padrão de Downloads
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nomeArquivo;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = "✔ Backup baixado pra pasta de Downloads.";
+  } catch (e) {
+    statusEl.textContent = `Erro ao baixar backup: ${e.message}`;
+  }
+});
 
 // ---------- Init ----------
 if (getPassword()) {
