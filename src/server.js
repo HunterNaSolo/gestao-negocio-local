@@ -27,12 +27,20 @@ app.get("/api/version", (req, res) => {
 });
 
 async function start() {
-  // confere atualização ANTES de subir o servidor — assim, se aplicar uma
-  // versão nova, já sobe já com os arquivos atualizados
+  // confere atualização ANTES de subir o servidor.
+  // Importante: os arquivos são substituídos no disco, mas o Node já carregou
+  // o código antigo na memória — então, se aplicar uma atualização, a gente
+  // encerra o programa com um "código especial" (42), e o iniciar.bat
+  // reconhece esse código e reabre o programa sozinho, agora sim com a
+  // versão nova de verdade.
   try {
     const release = await checkForUpdate();
     if (release) {
-      await downloadAndApplyUpdate(release);
+      const aplicou = await downloadAndApplyUpdate(release);
+      if (aplicou) {
+        console.log("\nReiniciando automaticamente com a versão nova...\n");
+        process.exit(42);
+      }
     }
   } catch (err) {
     console.log("Falha ao checar/aplicar atualização (seguindo com a versão atual):", err.message);
