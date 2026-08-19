@@ -1,4 +1,6 @@
 const express = require("express");
+const path = require("path");
+const fs = require("fs");
 const db = require("./db");
 const { newId } = require("./utils");
 
@@ -14,6 +16,18 @@ function checkAdminPassword(req, res, next) {
   }
   next();
 }
+
+// ---------- Backup ----------
+router.get("/backup", checkAdminPassword, (req, res) => {
+  const dbPath = path.join(__dirname, "..", "data", "negocio.db");
+  if (!fs.existsSync(dbPath)) {
+    return res.status(404).json({ error: "O banco de dados ainda não foi criado (nenhum lançamento feito ainda)" });
+  }
+  const dataAtual = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Disposition", `attachment; filename="backup-negocio-${dataAtual}.db"`);
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.sendFile(dbPath);
+});
 
 // ---------- Configurações (senha própria) ----------
 router.post("/verify-admin", (req, res) => {
