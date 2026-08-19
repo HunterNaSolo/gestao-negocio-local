@@ -35,6 +35,8 @@
         <button class="tab-btn" data-tab="caixa">💰 Caixa</button>
         <button class="tab-btn" data-tab="estoque">📦 Estoque</button>
         <button class="tab-btn" data-tab="pedidos">🧾 Pedidos</button>
+        <button class="tab-btn" data-tab="clientes">🏆 Clientes Fiéis</button>
+        <button class="tab-btn" data-tab="cupons">🎟️ Cupons</button>
         <button class="tab-btn" data-tab="configuracoes">⚙️ Configurações</button>
       </nav>
       <button id="sidebar-logout-btn" class="sidebar-logout-btn" title="Sair">⎋ Sair</button>
@@ -51,6 +53,8 @@
         <button class="tab-btn" data-tab="caixa">Caixa</button>
         <button class="tab-btn" data-tab="estoque">Estoque</button>
         <button class="tab-btn" data-tab="pedidos">Pedidos</button>
+        <button class="tab-btn" data-tab="clientes">Clientes Fiéis</button>
+        <button class="tab-btn" data-tab="cupons">Cupons</button>
         <button class="tab-btn" data-tab="configuracoes">Configurações</button>
       </nav>
 
@@ -149,13 +153,36 @@
           <div class="card">
             <h2>Novo pedido</h2>
             <input type="text" id="pedido-cliente-input" placeholder="Cliente (opcional)" />
+            <input type="text" id="pedido-cpf-input" placeholder="CPF (opcional, ex: 111.111.111-11)" />
+            <div id="pedido-fiel-aviso" class="loyalty-banner hidden"></div>
             <select id="pedido-produto-select"></select>
             <div class="row-grid">
               <input type="number" id="pedido-quantidade-input" placeholder="Quantidade" value="1" />
               <button id="pedido-add-item-btn" class="secondary-btn" style="margin-bottom: 0;">+ Item</button>
             </div>
             <div id="pedido-itens-list"></div>
-            <p class="hint">Total: <strong id="pedido-total">R$ 0,00</strong></p>
+
+            <label class="field-label">Cupom de desconto (opcional)</label>
+            <select id="pedido-cupom-select">
+              <option value="">Nenhum cupom</option>
+            </select>
+
+            <div id="pedido-resumo-preco" class="price-breakdown hidden">
+              <div class="pb-row">
+                <span>Valor original</span>
+                <span id="pb-subtotal">R$ 0,00</span>
+              </div>
+              <div class="pb-row pb-discount">
+                <span id="pb-cupom-label">Desconto</span>
+                <span id="pb-desconto">- R$ 0,00</span>
+              </div>
+              <div class="pb-row pb-final">
+                <span>Total a pagar</span>
+                <span id="pb-total">R$ 0,00</span>
+              </div>
+            </div>
+            <p class="hint" id="pedido-total-simples">Total: <strong id="pedido-total">R$ 0,00</strong></p>
+
             <select id="pedido-forma-pagamento-input">
               <option value="Dinheiro">Dinheiro</option>
               <option value="Pix">Pix</option>
@@ -168,6 +195,64 @@
           <div class="card">
             <h2>Pedidos recentes</h2>
             <div id="pedidos-list"></div>
+          </div>
+        </section>
+
+        <section id="tab-clientes" class="tab-content">
+          <p class="tab-description">Ranking dos seus clientes que mais voltam a comprar — identificados pelo CPF informado no pedido.</p>
+
+          <div class="balance-summary">
+            <div class="balance-stat">
+              <span class="balance-label">Mais de 1 compra</span>
+              <span id="clientes-tier-1" class="balance-value">0</span>
+            </div>
+            <div class="balance-stat">
+              <span class="balance-label">Mais de 5 compras</span>
+              <span id="clientes-tier-5" class="balance-value">0</span>
+            </div>
+            <div class="balance-stat">
+              <span class="balance-label">Mais de 10 compras</span>
+              <span id="clientes-tier-10" class="balance-value">0</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>🏆 Melhores clientes</h2>
+            <div class="table-scroll">
+              <table class="data-table" id="clientes-table">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Cliente</th><th>CPF</th><th>Compras</th><th>Total gasto</th><th>Nível</th>
+                  </tr>
+                </thead>
+                <tbody id="clientes-rows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-cupons" class="tab-content">
+          <p class="tab-description">Crie códigos de desconto (ex: "PROMO10") pra aplicar na hora de fechar um pedido.</p>
+
+          <div id="cupons-lock-card" class="card">
+            <h2>🔒 Cupons</h2>
+            <p class="hint">Essa área usa a mesma senha de administrador das Configurações.</p>
+            <input type="password" id="cupons-password-input" placeholder="Senha de administrador" />
+            <button id="cupons-unlock-btn" class="primary-btn">Entrar</button>
+            <p id="cupons-password-error" class="error"></p>
+          </div>
+
+          <div id="cupons-content" class="hidden">
+            <div class="card">
+              <h2>Criar cupom</h2>
+              <input type="text" id="cupom-codigo-input" placeholder="Código (ex: PROMO10)" style="text-transform: uppercase;" />
+              <input type="number" id="cupom-percentual-input" placeholder="Percentual de desconto (ex: 10)" min="1" max="100" />
+              <button id="add-cupom-btn" class="primary-btn">Criar cupom</button>
+            </div>
+            <div class="card">
+              <h2>Cupons ativos</h2>
+              <div id="cupons-list"></div>
+            </div>
           </div>
         </section>
 

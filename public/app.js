@@ -36,7 +36,17 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-let state = { caixa: [], estoque: [], pedidos: [], pedidoItens: [], categorias: [], adminPassword: null };
+let state = {
+  caixa: [],
+  estoque: [],
+  pedidos: [],
+  pedidoItens: [],
+  categorias: [],
+  cupons: [],
+  clientesFieis: [],
+  pedidoCupomAplicado: null,
+  adminPassword: null,
+};
 
 // ---------- Auth ----------
 function getPassword() {
@@ -135,17 +145,21 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 // ---------- Load everything ----------
 async function loadAll() {
   try {
-    const [caixaData, estoqueData, pedidosData, categoriasData] = await Promise.all([
+    const [caixaData, estoqueData, pedidosData, categoriasData, cuponsData, clientesData] = await Promise.all([
       apiFetch("/api/caixa"),
       apiFetch("/api/estoque"),
       apiFetch("/api/pedidos"),
       apiFetch("/api/categorias"),
+      apiFetch("/api/cupons"),
+      apiFetch("/api/clientes-fieis"),
     ]);
     state.caixa = caixaData.entradas || [];
     state.caixaSaldo = caixaData.saldo || 0;
     state.estoque = estoqueData.produtos || [];
     state.pedidos = pedidosData.pedidos || [];
     state.categorias = categoriasData.categorias || [];
+    state.cupons = cuponsData.cupons || [];
+    state.clientesFieis = clientesData.clientes || [];
   } catch (e) {
     console.error(e);
   }
@@ -156,6 +170,9 @@ async function loadAll() {
   populatePedidoProdutoSelect();
   populateCategoriaSelect();
   renderCategoriasChips();
+  populateCupomSelect();
+  renderCuponsList();
+  renderClientesFieis();
 }
 
 function populateCategoriaSelect() {
@@ -387,8 +404,25 @@ function populatePedidoProdutoSelect() {
 }
 
 function updatePedidoTotal() {
-  const total = state.pedidoItens.reduce((acc, i) => acc + i.precoUnit * i.quantidade, 0);
-  $("#pedido-total").textContent = formatMoney(total);
+  const subtotal = state.pedidoItens.reduce((acc, i) => acc + i.precoUnit * i.quantidade, 0);
+  const cupom = state.pedidoCupomAplicado;
+
+  if (!cupom) {
+    $("#pedido-resumo-preco").classList.add("hidden");
+    $("#pedido-total-simples").classList.remove("hidden");
+    $("#pedido-total").textContent = formatMoney(subtotal);
+    return;
+  }
+
+  const desconto = Math.round(subtotal * (cupom.percentual / 100) * 100) / 100;
+  const total = Math.round((subtotal - desconto) * 100) / 100;
+
+  $("#pedido-total-simples").classList.add("hidden");
+  $("#pedido-resumo-preco").classList.remove("hidden");
+  $("#pb-subtotal").textContent = formatMoney(subtotal);
+  $("#pb-cupom-label").textContent = `Desconto (${cupom.codigo} -${cupom.percentual}%)`;
+  $("#pb-desconto").textContent = `- ${formatMoney(desconto)}`;
+  $("#pb-total").textContent = formatMoney(total);
 }
 
 function renderPedidoItens() {
@@ -441,6 +475,55 @@ $("#pedido-add-item-btn").addEventListener("click", () => {
   renderPedidoItens();
 });
 
+function populateCupomSelect() {
+  const select = $("#pedido-cupom-select");
+  const current = select.value;
+  select.innerHTML =
+    '<option value="">Nenhum cupom</option>' +
+    state.cupons.map((c) => `<option value="${c.codigo}">${c.codigo} (-${c.percentual}%)</option>`).join("");
+  if (state.cupons.some((c) => c.codigo === current)) select.value = current;
+}
+
+$("#pedido-cupom-select").addEventListener("change", () => {
+  const codigo = $("#pedido-cupom-select").value;
+  if (!codigo) {
+    state.pedidoCupomAplicado = null;
+  } else {
+    const cupom = state.cupons.find((c) => c.codigo === codigo);
+    state.pedidoCupomAplicado = cupom ? { codigo: cupom.codigo, percentual: cupom.percentual } : null;
+  }
+  updatePedidoTotal();
+});
+
+// ---------- Verificação de cliente fiel (pelo CPF) ----------
+$("#pedido-cpf-input").addEventListener("input", () => {
+  const cpf = $("#pedido-cpf-input").value.trim();
+  const avisoEl = $("#pedido-fiel-aviso");
+
+  if (!cpf) {
+    avisoEl.classList.add("hidden");
+    return;
+  }
+
+  const cliente = state.clientesFieis.find((c) => c.cpf === cpf);
+  if (!cliente || cliente.totalCompras === 0) {
+    avisoEl.classList.add("hidden");
+    return;
+  }
+
+  avisoEl.classList.remove("hidden");
+  avisoEl.innerHTML = `
+    Esse cliente já comprou <strong>${cliente.totalCompras}x</strong>! Deseja premiá-lo com um cupom de fidelidade (5% de desconto)?
+    <button id="aplicar-fidelidade-btn">Aplicar cupom de 5% de fidelidade</button>
+  `;
+  $("#aplicar-fidelidade-btn").addEventListener("click", () => {
+    state.pedidoCupomAplicado = { codigo: "FIDELIDADE5", percentual: 5 };
+    $("#pedido-cupom-select").value = ""; // é um cupom especial, fora da lista normal
+    updatePedidoTotal();
+    avisoEl.classList.add("hidden");
+  });
+});
+
 $("#pedido-finalizar-btn").addEventListener("click", async () => {
   const errorEl = $("#pedido-error");
   errorEl.textContent = "";
@@ -452,14 +535,20 @@ $("#pedido-finalizar-btn").addEventListener("click", async () => {
 
   const body = {
     cliente: $("#pedido-cliente-input").value.trim(),
+    cpf: $("#pedido-cpf-input").value.trim(),
     itens: state.pedidoItens.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade })),
     formaPagamento: $("#pedido-forma-pagamento-input").value,
+    cupomCodigo: state.pedidoCupomAplicado ? state.pedidoCupomAplicado.codigo : null,
   };
 
   try {
     await apiFetch("/api/pedidos", { method: "POST", body: JSON.stringify(body) });
     state.pedidoItens = [];
+    state.pedidoCupomAplicado = null;
     $("#pedido-cliente-input").value = "";
+    $("#pedido-cpf-input").value = "";
+    $("#pedido-cupom-select").value = "";
+    $("#pedido-fiel-aviso").classList.add("hidden");
     renderPedidoItens();
     await loadAll();
   } catch (e) {
@@ -530,8 +619,7 @@ $("#config-unlock-btn").addEventListener("click", async () => {
     await apiFetch("/api/verify-admin", { method: "POST", body: JSON.stringify({ senha }) });
     state.adminPassword = senha;
     sessionStorage.setItem("gestao_admin_password", senha);
-    $("#config-lock-card").classList.add("hidden");
-    $("#config-content").classList.remove("hidden");
+    unlockAdminAreas();
   } catch (e) {
     errorEl.textContent = e.message === "unauthorized" ? "" : e.message || "Senha incorreta.";
     if (!errorEl.textContent) errorEl.textContent = "Senha incorreta.";
@@ -555,19 +643,138 @@ $("#add-categoria-btn").addEventListener("click", async () => {
   }
 });
 
-// se a pessoa já entrou nas Configurações antes nessa mesma aba/sessão do
-// navegador, não precisa digitar a senha de novo toda vez que troca de aba
+// se a pessoa já entrou nas Configurações (ou Cupons) antes nessa mesma
+// sessão do navegador, não precisa digitar a senha de novo toda vez
 const savedAdminPassword = sessionStorage.getItem("gestao_admin_password");
 if (savedAdminPassword) {
   state.adminPassword = savedAdminPassword;
-  $("#config-lock-card").classList.add("hidden");
-  $("#config-content").classList.remove("hidden");
+  unlockAdminAreas();
 }
 
 // ---------- Máscaras de moeda ----------
 applyCurrencyMask($("#caixa-valor-input"));
 applyCurrencyMask($("#estoque-custo-input"));
 applyCurrencyMask($("#estoque-venda-input"));
+
+// ---------- Clientes Fiéis ----------
+function tierInfo(totalCompras) {
+  if (totalCompras > 10) return { label: "Ouro", cls: "tier-ouro" };
+  if (totalCompras > 5) return { label: "Prata", cls: "tier-prata" };
+  if (totalCompras > 1) return { label: "Bronze", cls: "tier-bronze" };
+  return null;
+}
+
+function renderClientesFieis() {
+  const mais1 = state.clientesFieis.filter((c) => c.totalCompras > 1).length;
+  const mais5 = state.clientesFieis.filter((c) => c.totalCompras > 5).length;
+  const mais10 = state.clientesFieis.filter((c) => c.totalCompras > 10).length;
+  $("#clientes-tier-1").textContent = mais1;
+  $("#clientes-tier-5").textContent = mais5;
+  $("#clientes-tier-10").textContent = mais10;
+
+  const container = $("#clientes-rows");
+  if (state.clientesFieis.length === 0) {
+    container.innerHTML = '<tr><td colspan="6" class="empty">Nenhum cliente identificado por CPF ainda</td></tr>';
+    return;
+  }
+  container.innerHTML = state.clientesFieis
+    .map((c, idx) => {
+      const tier = tierInfo(c.totalCompras);
+      return `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${escapeHtml(c.nome || "(sem nome)")}</td>
+        <td>${escapeHtml(c.cpf)}</td>
+        <td>${c.totalCompras}</td>
+        <td>${formatMoney(c.totalGasto)}</td>
+        <td>${tier ? `<span class="tier-badge ${tier.cls}">${tier.label}</span>` : "—"}</td>
+      </tr>
+    `;
+    })
+    .join("");
+}
+
+// ---------- Cupons ----------
+function renderCuponsList() {
+  const container = $("#cupons-list");
+  if (state.cupons.length === 0) {
+    container.innerHTML = '<div class="empty">Nenhum cupom criado ainda</div>';
+    return;
+  }
+  container.innerHTML = state.cupons
+    .map(
+      (c) => `
+    <div class="cupom-item">
+      <span><span class="cupom-codigo">${escapeHtml(c.codigo)}</span><span class="cupom-pct">-${c.percentual}%</span></span>
+      <button data-id="${c.id}">✕</button>
+    </div>
+  `
+    )
+    .join("");
+  container.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Remover esse cupom?")) return;
+      try {
+        await apiFetch("/api/cupons", {
+          method: "DELETE",
+          body: JSON.stringify({ id: btn.dataset.id }),
+          headers: { "x-admin-password": state.adminPassword },
+        });
+        await loadAll();
+      } catch (e) {
+        alert(`Erro ao remover: ${e.message}`);
+      }
+    });
+  });
+}
+
+$("#add-cupom-btn").addEventListener("click", async () => {
+  const codigo = $("#cupom-codigo-input").value.trim();
+  const percentual = parseFloat($("#cupom-percentual-input").value);
+  if (!codigo) {
+    alert("Digite o código do cupom.");
+    return;
+  }
+  if (!percentual || percentual <= 0 || percentual > 100) {
+    alert("Percentual precisa ser entre 1 e 100.");
+    return;
+  }
+  try {
+    await apiFetch("/api/cupons", {
+      method: "POST",
+      body: JSON.stringify({ codigo, percentual }),
+      headers: { "x-admin-password": state.adminPassword },
+    });
+    $("#cupom-codigo-input").value = "";
+    $("#cupom-percentual-input").value = "";
+    await loadAll();
+  } catch (e) {
+    alert(`Erro ao criar cupom: ${e.message}`);
+  }
+});
+
+// a aba Cupons usa a MESMA senha de administrador das Configurações
+$("#cupons-unlock-btn").addEventListener("click", async () => {
+  const senha = $("#cupons-password-input").value;
+  const errorEl = $("#cupons-password-error");
+  errorEl.textContent = "";
+  if (!senha) return;
+  try {
+    await apiFetch("/api/verify-admin", { method: "POST", body: JSON.stringify({ senha }) });
+    state.adminPassword = senha;
+    sessionStorage.setItem("gestao_admin_password", senha);
+    unlockAdminAreas();
+  } catch (e) {
+    errorEl.textContent = e.message === "unauthorized" ? "Senha incorreta." : e.message || "Senha incorreta.";
+  }
+});
+
+function unlockAdminAreas() {
+  $("#config-lock-card").classList.add("hidden");
+  $("#config-content").classList.remove("hidden");
+  $("#cupons-lock-card").classList.add("hidden");
+  $("#cupons-content").classList.remove("hidden");
+}
 
 // ---------- Init ----------
 if (getPassword()) {

@@ -183,3 +183,52 @@ main { padding: 16px 20px 40px; max-width: 680px; margin: 0 auto; }
   background: #101018; border: 1px solid var(--border); color: var(--text);
   padding: 0 14px; white-space: nowrap; font-size: 13px;
 }
+
+.field-label { display: block; font-size: 12px; color: var(--muted); margin: 4px 0 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+
+/* ---------- Aviso de cliente fiel ---------- */
+.loyalty-banner {
+  background: linear-gradient(135deg, #422006, #1a0d02);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.loyalty-banner strong { color: var(--accent); }
+.loyalty-banner button {
+  margin-top: 10px; width: 100%; padding: 10px;
+  background: var(--accent); color: #1a1200; font-weight: 700;
+}
+
+/* ---------- Resumo de preço (estilo iFood) ---------- */
+.price-breakdown {
+  background: #101018; border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px; margin-bottom: 14px;
+}
+.pb-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
+.pb-discount { color: var(--good); }
+.pb-final {
+  border-top: 1px dashed var(--border); margin-top: 6px; padding-top: 10px;
+  font-size: 17px; font-weight: 700; font-family: var(--font-mono);
+}
+
+/* ---------- Nível de cliente fiel (badges) ---------- */
+.tier-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.tier-bronze { background: #7c4a1e33; color: #d4915a; }
+.tier-prata { background: #6b728033; color: #c4cbd6; }
+.tier-ouro { background: #d4af3733; color: #ffd76a; }
+
+/* ---------- Cupons ---------- */
+.cupom-item {
+  display: flex; justify-content: space-between; align-items: center;
+  background: #101018; border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 8px;
+}
+.cupom-item .cupom-codigo { font-family: var(--font-mono); font-weight: 700; font-size: 15px; letter-spacing: 0.5px; }
+.cupom-item .cupom-pct { color: var(--good); font-weight: 700; margin-left: 8px; }
+.cupom-item button { background: transparent; color: var(--danger); font-size: 14px; padding: 4px 10px; }
