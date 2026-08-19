@@ -51,6 +51,14 @@ db.exec(`
     percentual REAL NOT NULL,
     ativo INTEGER DEFAULT 1
   );
+
+  CREATE TABLE IF NOT EXISTS devolucoes (
+    id TEXT PRIMARY KEY,
+    pedidoId TEXT NOT NULL,
+    data TEXT NOT NULL,
+    itens TEXT NOT NULL,
+    valorReembolsado REAL NOT NULL
+  );
 `);
 
 // Migração simples: adiciona colunas novas em "pedidos" se ainda não existirem

@@ -282,4 +282,103 @@ router.post("/pedidos", (req, res) => {
   }
 });
 
+// ---------- Devoluções ----------
+router.get("/devolucoes", (req, res) => {
+  const rows = db.prepare("SELECT * FROM devolucoes ORDER BY data DESC").all();
+  const devolucoes = rows.map((r) => ({ ...r, itens: JSON.parse(r.itens || "[]") }));
+  res.json({ devolucoes });
+});
+
+router.post("/devolucoes", (req, res) => {
+  const { pedidoId, itens } = req.body || {};
+  if (!pedidoId || !Array.isArray(itens) || itens.length === 0) {
+    return res.status(400).json({ error: "'pedidoId' e 'itens' são obrigatórios" });
+  }
+
+  const pedido = db.prepare("SELECT * FROM pedidos WHERE id = ?").get(pedidoId);
+  if (!pedido) return res.status(404).json({ error: "Pedido não encontrado" });
+
+  const itensOriginais = JSON.parse(pedido.itens || "[]");
+  const devolucoesAnteriores = db
+    .prepare("SELECT itens FROM devolucoes WHERE pedidoId = ?")
+    .all(pedidoId)
+    .map((d) => JSON.parse(d.itens || "[]"));
+
+  // soma quanto de cada produto já tinha sido devolvido antes, nesse pedido
+  const jaDevolvido = {};
+  devolucoesAnteriores.forEach((lista) => {
+    lista.forEach((i) => {
+      jaDevolvido[i.produtoId] = (jaDevolvido[i.produtoId] || 0) + i.quantidade;
+    });
+  });
+
+  const itensDetalhados = [];
+  let valorBrutoDevolvido = 0;
+  for (const item of itens) {
+    if (!item.quantidade || item.quantidade <= 0) continue;
+    const original = itensOriginais.find((i) => i.produtoId === item.produtoId);
+    if (!original) return res.status(400).json({ error: `Item não encontrado nesse pedido: ${item.produtoId}` });
+
+    const jaDevolvidoQtd = jaDevolvido[item.produtoId] || 0;
+    const restante = original.quantidade - jaDevolvidoQtd;
+    if (item.quantidade > restante) {
+      return res.status(400).json({
+        error: `Só dá pra devolver até ${restante} unidade(s) de "${original.produto}" (já devolvido antes: ${jaDevolvidoQtd})`,
+      });
+    }
+
+    itensDetalhados.push({
+      produtoId: item.produtoId,
+      produto: original.produto,
+      quantidade: item.quantidade,
+      precoUnit: original.precoUnit,
+    });
+    valorBrutoDevolvido += original.precoUnit * item.quantidade;
+  }
+
+  if (itensDetalhados.length === 0) {
+    return res.status(400).json({ error: "Nenhum item válido pra devolver" });
+  }
+
+  // aplica a mesma proporção de desconto que o pedido original teve (se teve cupom)
+  const subtotalOriginal = itensOriginais.reduce((acc, i) => acc + i.subtotal, 0);
+  const proporcaoDesconto = subtotalOriginal > 0 ? (pedido.desconto || 0) / subtotalOriginal : 0;
+  const valorReembolsado = Math.round(valorBrutoDevolvido * (1 - proporcaoDesconto) * 100) / 100;
+
+  try {
+    db.exec("BEGIN");
+
+    for (const item of itensDetalhados) {
+      db.prepare("UPDATE estoque SET quantidade = quantidade + ? WHERE id = ?").run(item.quantidade, item.produtoId);
+    }
+
+    const id = newId();
+    const dataAgora = new Date().toISOString();
+    db.prepare("INSERT INTO devolucoes (id, pedidoId, data, itens, valorReembolsado) VALUES (?, ?, ?, ?, ?)").run(
+      id,
+      pedidoId,
+      dataAgora,
+      JSON.stringify(itensDetalhados),
+      valorReembolsado
+    );
+
+    db.prepare(`INSERT INTO caixa (id, data, tipo, descricao, valor, origem) VALUES (?, ?, ?, ?, ?, ?)`).run(
+      newId(),
+      dataAgora,
+      "saida",
+      `Devolução${pedido.cliente ? " — " + pedido.cliente : ""}`,
+      valorReembolsado,
+      `devolucao:${id}`
+    );
+
+    db.exec("COMMIT");
+    res.json({ ok: true, id, valorReembolsado, itens: itensDetalhados });
+  } catch (err) {
+    try {
+      db.exec("ROLLBACK");
+    } catch (_) {}
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
