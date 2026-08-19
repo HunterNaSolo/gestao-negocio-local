@@ -8,13 +8,35 @@ function formatMoney(v) {
   return `R$ ${Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Máscara de moeda: a pessoa só digita números (0-9), e a formatação com
+// vírgula/ponto acontece sozinha — não dá pra digitar vírgula/ponto na mão.
+function applyCurrencyMask(input) {
+  input.addEventListener("input", () => {
+    const digits = input.value.replace(/\D/g, "");
+    if (!digits) {
+      input.value = "";
+      return;
+    }
+    const reais = (parseInt(digits, 10) / 100).toFixed(2);
+    let [intPart, decPart] = reais.split(".");
+    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    input.value = `${intPart},${decPart}`;
+  });
+}
+
+function currencyValueToNumber(input) {
+  const digits = input.value.replace(/\D/g, "");
+  if (!digits) return 0;
+  return parseInt(digits, 10) / 100;
+}
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str ?? "";
   return div.innerHTML;
 }
 
-let state = { caixa: [], estoque: [], pedidos: [], pedidoItens: [] };
+let state = { caixa: [], estoque: [], pedidos: [], pedidoItens: [], categorias: [], adminPassword: null };
 
 // ---------- Auth ----------
 function getPassword() {
@@ -113,15 +135,17 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 // ---------- Load everything ----------
 async function loadAll() {
   try {
-    const [caixaData, estoqueData, pedidosData] = await Promise.all([
+    const [caixaData, estoqueData, pedidosData, categoriasData] = await Promise.all([
       apiFetch("/api/caixa"),
       apiFetch("/api/estoque"),
       apiFetch("/api/pedidos"),
+      apiFetch("/api/categorias"),
     ]);
     state.caixa = caixaData.entradas || [];
     state.caixaSaldo = caixaData.saldo || 0;
     state.estoque = estoqueData.produtos || [];
     state.pedidos = pedidosData.pedidos || [];
+    state.categorias = categoriasData.categorias || [];
   } catch (e) {
     console.error(e);
   }
@@ -130,6 +154,23 @@ async function loadAll() {
   renderPedidos();
   renderResumo();
   populatePedidoProdutoSelect();
+  populateCategoriaSelect();
+  renderCategoriasChips();
+}
+
+function populateCategoriaSelect() {
+  const select = $("#estoque-categoria-input");
+  const current = select.value;
+  if (state.categorias.length === 0) {
+    select.innerHTML = '<option value="">Nenhuma categoria cadastrada ainda</option>';
+    return;
+  }
+  select.innerHTML = state.categorias.map((c) => `<option value="${escapeAttr(c.nome)}">${escapeHtml(c.nome)}</option>`).join("");
+  if (state.categorias.some((c) => c.nome === current)) select.value = current;
+}
+
+function escapeAttr(v) {
+  return (v ?? "").toString().replace(/"/g, "&quot;");
 }
 
 // ---------- Resumo ----------
@@ -253,7 +294,7 @@ function renderCaixa() {
 $("#caixa-add-btn").addEventListener("click", async () => {
   const tipo = $("#caixa-tipo-input").value;
   const descricao = $("#caixa-descricao-input").value.trim();
-  const valor = parseFloat($("#caixa-valor-input").value);
+  const valor = currencyValueToNumber($("#caixa-valor-input"));
 
   if (!valor || valor <= 0) {
     alert("Informe um valor válido.");
@@ -317,17 +358,16 @@ $("#estoque-add-btn").addEventListener("click", async () => {
   }
   const body = {
     produto,
-    categoria: $("#estoque-categoria-input").value.trim(),
+    categoria: $("#estoque-categoria-input").value,
     quantidade: parseFloat($("#estoque-quantidade-input").value) || 0,
-    precoCusto: parseFloat($("#estoque-custo-input").value) || 0,
-    precoVenda: parseFloat($("#estoque-venda-input").value) || 0,
+    precoCusto: currencyValueToNumber($("#estoque-custo-input")),
+    precoVenda: currencyValueToNumber($("#estoque-venda-input")),
     estoqueMinimo: parseFloat($("#estoque-minimo-input").value) || 0,
   };
 
   try {
     await apiFetch("/api/estoque", { method: "POST", body: JSON.stringify(body) });
     $("#estoque-produto-input").value = "";
-    $("#estoque-categoria-input").value = "";
     $("#estoque-quantidade-input").value = "";
     $("#estoque-custo-input").value = "";
     $("#estoque-venda-input").value = "";
@@ -448,6 +488,86 @@ function renderPedidos() {
     )
     .join("");
 }
+
+// ---------- Configurações (categorias, com senha própria) ----------
+function renderCategoriasChips() {
+  const container = $("#categorias-chips");
+  if (state.categorias.length === 0) {
+    container.innerHTML = '<span class="hint">Nenhuma ainda</span>';
+    return;
+  }
+  container.innerHTML = "";
+  state.categorias.forEach((c) => {
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.innerHTML = `<span>${escapeHtml(c.nome)}</span>`;
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", async () => {
+      if (!confirm(`Remover a categoria "${c.nome}"?`)) return;
+      try {
+        await apiFetch("/api/categorias", {
+          method: "DELETE",
+          body: JSON.stringify({ id: c.id }),
+          headers: { "x-admin-password": state.adminPassword },
+        });
+        await loadAll();
+      } catch (e) {
+        alert(`Erro ao remover: ${e.message}`);
+      }
+    });
+    chip.appendChild(removeBtn);
+    container.appendChild(chip);
+  });
+}
+
+$("#config-unlock-btn").addEventListener("click", async () => {
+  const senha = $("#config-password-input").value;
+  const errorEl = $("#config-password-error");
+  errorEl.textContent = "";
+  if (!senha) return;
+  try {
+    await apiFetch("/api/verify-admin", { method: "POST", body: JSON.stringify({ senha }) });
+    state.adminPassword = senha;
+    sessionStorage.setItem("gestao_admin_password", senha);
+    $("#config-lock-card").classList.add("hidden");
+    $("#config-content").classList.remove("hidden");
+  } catch (e) {
+    errorEl.textContent = e.message === "unauthorized" ? "" : e.message || "Senha incorreta.";
+    if (!errorEl.textContent) errorEl.textContent = "Senha incorreta.";
+  }
+});
+
+$("#add-categoria-btn").addEventListener("click", async () => {
+  const input = $("#categoria-input");
+  const nome = input.value.trim();
+  if (!nome) return;
+  try {
+    await apiFetch("/api/categorias", {
+      method: "POST",
+      body: JSON.stringify({ nome }),
+      headers: { "x-admin-password": state.adminPassword },
+    });
+    input.value = "";
+    await loadAll();
+  } catch (e) {
+    alert(`Erro ao adicionar: ${e.message}`);
+  }
+});
+
+// se a pessoa já entrou nas Configurações antes nessa mesma aba/sessão do
+// navegador, não precisa digitar a senha de novo toda vez que troca de aba
+const savedAdminPassword = sessionStorage.getItem("gestao_admin_password");
+if (savedAdminPassword) {
+  state.adminPassword = savedAdminPassword;
+  $("#config-lock-card").classList.add("hidden");
+  $("#config-content").classList.remove("hidden");
+}
+
+// ---------- Máscaras de moeda ----------
+applyCurrencyMask($("#caixa-valor-input"));
+applyCurrencyMask($("#estoque-custo-input"));
+applyCurrencyMask($("#estoque-venda-input"));
 
 // ---------- Init ----------
 if (getPassword()) {

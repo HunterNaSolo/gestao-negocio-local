@@ -165,3 +165,16 @@ main { padding: 16px 20px 40px; max-width: 680px; margin: 0 auto; }
   border-bottom: 1px solid var(--border); font-size: 13px;
 }
 .low-stock-item:last-child { border-bottom: none; }
+
+.chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.chip {
+  background: #101018; border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 10px 6px 14px; display: flex; align-items: center; gap: 8px; font-size: 13px;
+}
+.chip button { background: transparent; color: var(--muted); font-size: 15px; line-height: 1; padding: 0; }
+.add-row { display: flex; gap: 8px; }
+.add-row input { margin-bottom: 0; }
+.add-row button {
+  background: #101018; border: 1px solid var(--border); color: var(--text);
+  padding: 0 14px; white-space: nowrap; font-size: 13px;
+}

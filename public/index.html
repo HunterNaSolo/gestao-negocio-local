@@ -35,6 +35,7 @@
         <button class="tab-btn" data-tab="caixa">💰 Caixa</button>
         <button class="tab-btn" data-tab="estoque">📦 Estoque</button>
         <button class="tab-btn" data-tab="pedidos">🧾 Pedidos</button>
+        <button class="tab-btn" data-tab="configuracoes">⚙️ Configurações</button>
       </nav>
       <button id="sidebar-logout-btn" class="sidebar-logout-btn" title="Sair">⎋ Sair</button>
     </aside>
@@ -50,6 +51,7 @@
         <button class="tab-btn" data-tab="caixa">Caixa</button>
         <button class="tab-btn" data-tab="estoque">Estoque</button>
         <button class="tab-btn" data-tab="pedidos">Pedidos</button>
+        <button class="tab-btn" data-tab="configuracoes">Configurações</button>
       </nav>
 
       <main>
@@ -96,7 +98,7 @@
               <option value="saida">Saída</option>
             </select>
             <input type="text" id="caixa-descricao-input" placeholder="Descrição" />
-            <input type="number" step="0.01" id="caixa-valor-input" placeholder="Valor" />
+            <input type="text" inputmode="numeric" id="caixa-valor-input" placeholder="R$ 0,00" />
             <button id="caixa-add-btn" class="primary-btn">Lançar</button>
           </div>
 
@@ -112,14 +114,14 @@
               <h2>Adicionar produto</h2>
             </div>
             <input type="text" id="estoque-produto-input" placeholder="Nome do produto" />
-            <input type="text" id="estoque-categoria-input" placeholder="Categoria" />
+            <select id="estoque-categoria-input"></select>
             <div class="row-grid">
               <input type="number" id="estoque-quantidade-input" placeholder="Quantidade" />
               <input type="number" id="estoque-minimo-input" placeholder="Estoque mínimo (alerta)" />
             </div>
             <div class="row-grid">
-              <input type="number" step="0.01" id="estoque-custo-input" placeholder="Preço de custo" />
-              <input type="number" step="0.01" id="estoque-venda-input" placeholder="Preço de venda" />
+              <input type="text" inputmode="numeric" id="estoque-custo-input" placeholder="R$ 0,00 (custo)" />
+              <input type="text" inputmode="numeric" id="estoque-venda-input" placeholder="R$ 0,00 (venda)" />
             </div>
             <button id="estoque-add-btn" class="primary-btn">Adicionar produto</button>
           </div>
@@ -162,6 +164,28 @@
           <div class="card">
             <h2>Pedidos recentes</h2>
             <div id="pedidos-list"></div>
+          </div>
+        </section>
+
+        <section id="tab-configuracoes" class="tab-content">
+          <div id="config-lock-card" class="card">
+            <h2>🔒 Configurações</h2>
+            <p class="hint">Essa área pede uma senha própria (diferente da senha de entrada do app).</p>
+            <input type="password" id="config-password-input" placeholder="Senha de administrador" />
+            <button id="config-unlock-btn" class="primary-btn">Entrar</button>
+            <p id="config-password-error" class="error"></p>
+          </div>
+
+          <div id="config-content" class="hidden">
+            <div class="card">
+              <h2>Categorias</h2>
+              <p class="hint">Cadastre aqui — depois aparecem na lista suspensa ao adicionar um produto no Estoque.</p>
+              <div id="categorias-chips" class="chip-list"></div>
+              <div class="add-row">
+                <input type="text" id="categoria-input" placeholder="ex: Bebidas" />
+                <button id="add-categoria-btn">Adicionar</button>
+              </div>
+            </div>
           </div>
         </section>
       </main>
