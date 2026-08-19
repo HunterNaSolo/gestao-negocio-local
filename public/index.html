@@ -56,6 +56,7 @@
 
       <main>
         <section id="tab-resumo" class="tab-content active">
+          <p class="tab-description">Visão geral do negócio: quanto tem em caixa, quanto vale seu estoque, e quantas vendas você fez recentemente — tudo num relance.</p>
           <div class="balance-summary">
             <div class="balance-stat">
               <span class="balance-label">Saldo em caixa</span>
@@ -84,6 +85,7 @@
         </section>
 
         <section id="tab-caixa" class="tab-content">
+          <p class="tab-description">O extrato do dinheiro do negócio: tudo que entra e sai. As vendas dos Pedidos já aparecem aqui sozinhas — use "Lançar movimentação" pra registrar outras entradas/saídas na mão (ex: pagar uma conta, retirar dinheiro).</p>
           <div class="balance-summary balance-1col">
             <div class="balance-stat">
               <span class="balance-label">Saldo atual</span>
@@ -109,6 +111,7 @@
         </section>
 
         <section id="tab-estoque" class="tab-content">
+          <p class="tab-description">Seus produtos: quantidade disponível, preço de custo e de venda. O "estoque mínimo" te avisa no Resumo quando um produto tá acabando.</p>
           <div class="card">
             <div class="section-header">
               <h2>Adicionar produto</h2>
@@ -142,6 +145,7 @@
         </section>
 
         <section id="tab-pedidos" class="tab-content">
+          <p class="tab-description">Registra uma venda: escolhe os produtos, e o app calcula o total, desconta do estoque e lança a entrada no Caixa sozinho.</p>
           <div class="card">
             <h2>Novo pedido</h2>
             <input type="text" id="pedido-cliente-input" placeholder="Cliente (opcional)" />
@@ -168,6 +172,7 @@
         </section>
 
         <section id="tab-configuracoes" class="tab-content">
+          <p class="tab-description">Área restrita — cadastre aqui as categorias que vão aparecer na lista suspensa do Estoque. Pede uma senha própria, separada da senha de entrada do app.</p>
           <div id="config-lock-card" class="card">
             <h2>🔒 Configurações</h2>
             <p class="hint">Essa área pede uma senha própria (diferente da senha de entrada do app).</p>
