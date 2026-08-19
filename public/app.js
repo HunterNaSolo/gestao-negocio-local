@@ -109,6 +109,7 @@ function showApp() {
   $("#login-screen").classList.add("hidden");
   $("#app-screen").classList.remove("hidden");
   loadAll();
+  checkBackupReminder();
 }
 
 $("#login-btn").addEventListener("click", async () => {
@@ -841,6 +842,62 @@ $("#backup-btn").addEventListener("click", async () => {
   } catch (e) {
     statusEl.textContent = `Erro ao baixar backup: ${e.message}`;
   }
+});
+
+// ---------- Relógio e data na sidebar ----------
+function updateClock() {
+  const now = new Date();
+  const dataEl = $("#sidebar-date");
+  const clockEl = $("#sidebar-clock");
+  if (dataEl) {
+    dataEl.textContent = now.toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+  if (clockEl) {
+    clockEl.textContent = now.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ---------- Lembrete de backup a cada 7 dias ----------
+const BACKUP_REMINDER_KEY = "gestao_last_backup_reminder";
+const SETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+
+function checkBackupReminder() {
+  const last = parseInt(localStorage.getItem(BACKUP_REMINDER_KEY), 10);
+  const agora = Date.now();
+  if (!last) {
+    // primeira vez que o app abre — começa a contar a partir de agora
+    localStorage.setItem(BACKUP_REMINDER_KEY, String(agora));
+    return;
+  }
+  if (agora - last >= SETE_DIAS_MS) {
+    $("#backup-reminder-modal").classList.remove("hidden");
+  }
+}
+
+function dismissBackupReminder() {
+  localStorage.setItem(BACKUP_REMINDER_KEY, String(Date.now()));
+  $("#backup-reminder-modal").classList.add("hidden");
+}
+
+$("#backup-reminder-later-btn").addEventListener("click", dismissBackupReminder);
+
+$("#backup-reminder-go-btn").addEventListener("click", () => {
+  dismissBackupReminder();
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+  document.querySelectorAll('.tab-btn[data-tab="configuracoes"]').forEach((b) => b.classList.add("active"));
+  $("#tab-configuracoes").classList.add("active");
 });
 
 // ---------- Init ----------

@@ -30,6 +30,10 @@
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-title">📦 Gestão</div>
+      <div class="sidebar-datetime">
+        <div id="sidebar-date" class="sidebar-date">—</div>
+        <div id="sidebar-clock" class="sidebar-clock">--:--:--</div>
+      </div>
       <nav class="sidebar-nav">
         <button class="tab-btn active" data-tab="resumo">📊 Resumo</button>
         <button class="tab-btn" data-tab="caixa">💰 Caixa</button>
@@ -285,6 +289,18 @@
           </div>
         </section>
       </main>
+    </div>
+  </div>
+</div>
+
+<!-- Lembrete de backup (aparece sozinho a cada 7 dias, ao abrir o app) -->
+<div id="backup-reminder-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h2>💾 Que tal fazer um backup?</h2>
+    <p class="hint">Já faz uma semana desde o último lembrete. Guardar uma cópia de segurança agora leva menos de um minuto.</p>
+    <div class="modal-actions">
+      <button id="backup-reminder-later-btn" class="secondary-btn">Lembrar depois</button>
+      <button id="backup-reminder-go-btn" class="primary-btn">Ir pra Configurações</button>
     </div>
   </div>
 </div>
