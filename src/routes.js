@@ -4,6 +4,55 @@ const { newId } = require("./utils");
 
 const router = express.Router();
 
+function checkAdminPassword(req, res, next) {
+  const expected = process.env.ADMIN_PASSWORD || "";
+  if (!expected) {
+    return res.status(500).json({ error: "ADMIN_PASSWORD não configurado no .env" });
+  }
+  if (req.headers["x-admin-password"] !== expected) {
+    return res.status(401).json({ error: "senha de administrador incorreta" });
+  }
+  next();
+}
+
+// ---------- Configurações (senha própria) ----------
+router.post("/verify-admin", (req, res) => {
+  const { senha } = req.body || {};
+  const expected = process.env.ADMIN_PASSWORD || "";
+  if (!expected) {
+    return res.status(500).json({ error: "ADMIN_PASSWORD não configurado no .env" });
+  }
+  if (senha !== expected) {
+    return res.status(401).json({ error: "senha incorreta" });
+  }
+  res.json({ ok: true });
+});
+
+// ---------- Categorias ----------
+router.get("/categorias", (req, res) => {
+  const rows = db.prepare("SELECT * FROM categorias ORDER BY nome").all();
+  res.json({ categorias: rows });
+});
+
+router.post("/categorias", checkAdminPassword, (req, res) => {
+  const { nome } = req.body || {};
+  if (!nome || !nome.trim()) return res.status(400).json({ error: "'nome' é obrigatório" });
+  const id = newId();
+  try {
+    db.prepare("INSERT INTO categorias (id, nome) VALUES (?, ?)").run(id, nome.trim());
+  } catch (err) {
+    return res.status(400).json({ error: "Essa categoria já existe" });
+  }
+  res.json({ ok: true, id });
+});
+
+router.delete("/categorias", checkAdminPassword, (req, res) => {
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ error: "'id' é obrigatório" });
+  db.prepare("DELETE FROM categorias WHERE id = ?").run(id);
+  res.json({ ok: true });
+});
+
 // ---------- Estoque ----------
 router.get("/estoque", (req, res) => {
   const rows = db.prepare("SELECT * FROM estoque WHERE ativo = 1").all();
@@ -94,7 +143,9 @@ router.post("/pedidos", (req, res) => {
     }
   }
 
-  const transacao = db.transaction(() => {
+  try {
+    db.exec("BEGIN");
+
     let total = 0;
     const itensDetalhados = [];
     for (const item of itens) {
@@ -126,13 +177,12 @@ router.post("/pedidos", (req, res) => {
       `pedido:${id}`
     );
 
-    return { id, total, itens: itensDetalhados };
-  });
-
-  try {
-    const resultado = transacao();
-    res.json({ ok: true, ...resultado });
+    db.exec("COMMIT");
+    res.json({ ok: true, id, total, itens: itensDetalhados });
   } catch (err) {
+    try {
+      db.exec("ROLLBACK");
+    } catch (_) {}
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,4 +1,4 @@
-const Database = require("better-sqlite3");
+const { DatabaseSync } = require("node:sqlite");
 const path = require("path");
 const fs = require("fs");
 
@@ -7,8 +7,7 @@ const fs = require("fs");
 const dataDir = path.join(__dirname, "..", "data");
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-const db = new Database(path.join(dataDir, "negocio.db"));
-db.pragma("journal_mode = WAL");
+const db = new DatabaseSync(path.join(dataDir, "negocio.db"));
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS estoque (
@@ -39,6 +38,11 @@ db.exec(`
     total REAL NOT NULL,
     formaPagamento TEXT,
     status TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS categorias (
+    id TEXT PRIMARY KEY,
+    nome TEXT NOT NULL UNIQUE
   );
 `);
 
