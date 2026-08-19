@@ -240,3 +240,40 @@ main { padding: 16px 20px 40px; max-width: 680px; margin: 0 auto; }
 .cupom-item button { background: transparent; color: var(--danger); font-size: 14px; padding: 4px 10px; }
 
 .status { text-align: center; color: var(--muted); font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+/* ---------- Modal (janela flutuante) ---------- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: flex-end; justify-content: center; z-index: 50;
+}
+.modal-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px 16px 0 0; padding: 20px; width: 100%; max-width: 480px;
+  max-height: 85vh; overflow-y: auto;
+}
+.modal-card h2 { margin-top: 0; }
+.modal-actions { display: flex; gap: 10px; margin-top: 14px; }
+.modal-actions button { flex: 1; margin-bottom: 0; }
+
+@media (min-width: 900px) {
+  .modal-overlay { align-items: center; }
+  .modal-card { border-radius: 16px; max-width: 520px; }
+}
+
+/* ---------- Devolução ---------- */
+.devolucao-item-row {
+  background: #101018; border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.devolucao-item-row .di-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 14px; }
+.devolucao-item-row .di-disponivel { font-size: 12px; color: var(--muted); }
+.devolucao-item-row input { margin-bottom: 0; }
+.pedido-actions { display: flex; gap: 8px; margin-top: 8px; }
+.devolver-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--accent);
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+}
+.devolucao-list-item {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 8px;
+}

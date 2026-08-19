@@ -200,6 +200,11 @@
             <h2>Pedidos recentes</h2>
             <div id="pedidos-list"></div>
           </div>
+
+          <div class="card">
+            <h2>↩ Devoluções recentes</h2>
+            <div id="devolucoes-list"></div>
+          </div>
         </section>
 
         <section id="tab-clientes" class="tab-content">
@@ -301,6 +306,20 @@
     <div class="modal-actions">
       <button id="backup-reminder-later-btn" class="secondary-btn">Lembrar depois</button>
       <button id="backup-reminder-go-btn" class="primary-btn">Ir pra Configurações</button>
+    </div>
+  </div>
+</div>
+
+<!-- Painel de devolução de itens de um pedido -->
+<div id="devolucao-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h2>↩ Devolver itens</h2>
+    <p class="hint">Escolhe a quantidade de cada item que está sendo devolvida. O estoque volta sozinho, e o valor é descontado do Caixa.</p>
+    <div id="devolucao-itens-list"></div>
+    <p id="devolucao-error" class="error"></p>
+    <div class="modal-actions">
+      <button id="devolucao-cancel-btn" class="secondary-btn">Cancelar</button>
+      <button id="devolucao-confirm-btn" class="primary-btn">Confirmar devolução</button>
     </div>
   </div>
 </div>

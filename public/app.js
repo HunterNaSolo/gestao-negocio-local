@@ -44,6 +44,7 @@ let state = {
   categorias: [],
   cupons: [],
   clientesFieis: [],
+  devolucoes: [],
   pedidoCupomAplicado: null,
   adminPassword: null,
 };
@@ -146,14 +147,16 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 // ---------- Load everything ----------
 async function loadAll() {
   try {
-    const [caixaData, estoqueData, pedidosData, categoriasData, cuponsData, clientesData] = await Promise.all([
-      apiFetch("/api/caixa"),
-      apiFetch("/api/estoque"),
-      apiFetch("/api/pedidos"),
-      apiFetch("/api/categorias"),
-      apiFetch("/api/cupons"),
-      apiFetch("/api/clientes-fieis"),
-    ]);
+    const [caixaData, estoqueData, pedidosData, categoriasData, cuponsData, clientesData, devolucoesData] =
+      await Promise.all([
+        apiFetch("/api/caixa"),
+        apiFetch("/api/estoque"),
+        apiFetch("/api/pedidos"),
+        apiFetch("/api/categorias"),
+        apiFetch("/api/cupons"),
+        apiFetch("/api/clientes-fieis"),
+        apiFetch("/api/devolucoes"),
+      ]);
     state.caixa = caixaData.entradas || [];
     state.caixaSaldo = caixaData.saldo || 0;
     state.estoque = estoqueData.produtos || [];
@@ -161,12 +164,14 @@ async function loadAll() {
     state.categorias = categoriasData.categorias || [];
     state.cupons = cuponsData.cupons || [];
     state.clientesFieis = clientesData.clientes || [];
+    state.devolucoes = devolucoesData.devolucoes || [];
   } catch (e) {
     console.error(e);
   }
   renderCaixa();
   renderEstoque();
   renderPedidos();
+  renderDevolucoes();
   renderResumo();
   populatePedidoProdutoSelect();
   populateCategoriaSelect();
@@ -566,6 +571,26 @@ $("#pedido-finalizar-btn").addEventListener("click", async () => {
   }
 });
 
+function jaDevolvidoPorItem(pedidoId) {
+  const mapa = {};
+  state.devolucoes
+    .filter((d) => d.pedidoId === pedidoId)
+    .forEach((d) => {
+      d.itens.forEach((i) => {
+        mapa[i.produtoId] = (mapa[i.produtoId] || 0) + i.quantidade;
+      });
+    });
+  return mapa;
+}
+
+function totalDisponivelParaDevolucao(pedido) {
+  const jaDevolvido = jaDevolvidoPorItem(pedido.id);
+  return pedido.itens.reduce((acc, item) => {
+    const restante = item.quantidade - (jaDevolvido[item.produtoId] || 0);
+    return acc + Math.max(restante, 0);
+  }, 0);
+}
+
 function renderPedidos() {
   const listEl = $("#pedidos-list");
   if (state.pedidos.length === 0) {
@@ -574,17 +599,106 @@ function renderPedidos() {
   }
   const ordenado = [...state.pedidos].sort((a, b) => new Date(b.data) - new Date(a.data));
   listEl.innerHTML = ordenado
-    .map(
-      (p) => `
+    .map((p) => {
+      const disponivel = totalDisponivelParaDevolucao(p);
+      return `
     <div class="list-item">
       <div class="li-top">
         <span class="li-desc">${escapeHtml(p.cliente || "Cliente não informado")}</span>
         <span class="li-value stat-high">${formatMoney(p.total)}</span>
       </div>
       <div class="li-meta">${new Date(p.data).toLocaleString("pt-BR")} · ${escapeHtml(p.formaPagamento)} · ${p.itens.length} item(ns)</div>
+      ${disponivel > 0 ? `<div class="pedido-actions"><button class="devolver-btn" data-id="${p.id}">↩ Devolver</button></div>` : ""}
     </div>
-  `
-    )
+  `;
+    })
+    .join("");
+
+  listEl.querySelectorAll(".devolver-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openDevolucaoModal(btn.dataset.id));
+  });
+}
+
+// ---------- Devoluções ----------
+function openDevolucaoModal(pedidoId) {
+  const pedido = state.pedidos.find((p) => p.id === pedidoId);
+  if (!pedido) return;
+
+  const jaDevolvido = jaDevolvidoPorItem(pedidoId);
+  const container = $("#devolucao-itens-list");
+  container.innerHTML = pedido.itens
+    .map((item) => {
+      const jaDevolvidoQtd = jaDevolvido[item.produtoId] || 0;
+      const disponivel = item.quantidade - jaDevolvidoQtd;
+      if (disponivel <= 0) return "";
+      return `
+      <div class="devolucao-item-row">
+        <div class="di-top">
+          <span>${escapeHtml(item.produto)}</span>
+          <span class="di-disponivel">disponível: ${disponivel}</span>
+        </div>
+        <input type="number" min="0" max="${disponivel}" value="0" data-produto-id="${item.produtoId}" placeholder="Quantidade a devolver" />
+      </div>
+    `;
+    })
+    .join("");
+
+  $("#devolucao-error").textContent = "";
+  $("#devolucao-modal").classList.remove("hidden");
+  $("#devolucao-confirm-btn").dataset.pedidoId = pedidoId;
+}
+
+$("#devolucao-cancel-btn").addEventListener("click", () => {
+  $("#devolucao-modal").classList.add("hidden");
+});
+
+$("#devolucao-confirm-btn").addEventListener("click", async () => {
+  const pedidoId = $("#devolucao-confirm-btn").dataset.pedidoId;
+  const errorEl = $("#devolucao-error");
+  errorEl.textContent = "";
+
+  const itens = [...document.querySelectorAll("#devolucao-itens-list input")]
+    .map((input) => ({ produtoId: input.dataset.produtoId, quantidade: parseFloat(input.value) || 0 }))
+    .filter((i) => i.quantidade > 0);
+
+  if (itens.length === 0) {
+    errorEl.textContent = "Informe a quantidade de pelo menos um item pra devolver.";
+    return;
+  }
+
+  try {
+    const resultado = await apiFetch("/api/devolucoes", {
+      method: "POST",
+      body: JSON.stringify({ pedidoId, itens }),
+    });
+    $("#devolucao-modal").classList.add("hidden");
+    await loadAll();
+    alert(`Devolução registrada — R$ ${resultado.valorReembolsado.toFixed(2).replace(".", ",")} descontado do Caixa.`);
+  } catch (e) {
+    errorEl.textContent = e.message;
+  }
+});
+
+function renderDevolucoes() {
+  const listEl = $("#devolucoes-list");
+  if (state.devolucoes.length === 0) {
+    listEl.innerHTML = '<div class="empty">Nenhuma devolução registrada ainda</div>';
+    return;
+  }
+  const ordenado = [...state.devolucoes].sort((a, b) => new Date(b.data) - new Date(a.data));
+  listEl.innerHTML = ordenado
+    .map((d) => {
+      const itensStr = d.itens.map((i) => `${i.quantidade}x ${escapeHtml(i.produto)}`).join(", ");
+      return `
+      <div class="devolucao-list-item">
+        <div class="li-top">
+          <span class="li-desc">${itensStr}</span>
+          <span class="li-value stat-low">- ${formatMoney(d.valorReembolsado)}</span>
+        </div>
+        <div class="li-meta">${new Date(d.data).toLocaleString("pt-BR")}</div>
+      </div>
+    `;
+    })
     .join("");
 }
 
