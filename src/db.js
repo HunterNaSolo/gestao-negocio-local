@@ -44,6 +44,25 @@ db.exec(`
     id TEXT PRIMARY KEY,
     nome TEXT NOT NULL UNIQUE
   );
+
+  CREATE TABLE IF NOT EXISTS cupons (
+    id TEXT PRIMARY KEY,
+    codigo TEXT NOT NULL UNIQUE,
+    percentual REAL NOT NULL,
+    ativo INTEGER DEFAULT 1
+  );
 `);
+
+// Migração simples: adiciona colunas novas em "pedidos" se ainda não existirem
+// (pra quem já tinha o banco criado antes dessas colunas existirem)
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+ensureColumn("pedidos", "cpf", "TEXT");
+ensureColumn("pedidos", "desconto", "REAL DEFAULT 0");
+ensureColumn("pedidos", "cupomCodigo", "TEXT");
 
 module.exports = db;

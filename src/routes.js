@@ -53,6 +53,55 @@ router.delete("/categorias", checkAdminPassword, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Cupons ----------
+router.get("/cupons", (req, res) => {
+  const rows = db.prepare("SELECT * FROM cupons WHERE ativo = 1 ORDER BY codigo").all();
+  res.json({ cupons: rows });
+});
+
+router.post("/cupons", checkAdminPassword, (req, res) => {
+  const { codigo, percentual } = req.body || {};
+  if (!codigo || !codigo.trim()) return res.status(400).json({ error: "'codigo' é obrigatório" });
+  const pct = Number(percentual);
+  if (!pct || pct <= 0 || pct > 100) return res.status(400).json({ error: "Percentual precisa ser entre 1 e 100" });
+  const id = newId();
+  try {
+    db.prepare("INSERT INTO cupons (id, codigo, percentual, ativo) VALUES (?, ?, ?, 1)").run(
+      id,
+      codigo.trim().toUpperCase(),
+      pct
+    );
+  } catch (err) {
+    return res.status(400).json({ error: "Esse código de cupom já existe" });
+  }
+  res.json({ ok: true, id });
+});
+
+router.delete("/cupons", checkAdminPassword, (req, res) => {
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ error: "'id' é obrigatório" });
+  db.prepare("UPDATE cupons SET ativo = 0 WHERE id = ?").run(id);
+  res.json({ ok: true });
+});
+
+// ---------- Clientes fiéis ----------
+router.get("/clientes-fieis", (req, res) => {
+  const pedidos = db
+    .prepare("SELECT cliente, cpf, total FROM pedidos WHERE cpf IS NOT NULL AND cpf != '' ORDER BY data ASC")
+    .all();
+
+  const porCpf = {};
+  for (const p of pedidos) {
+    if (!porCpf[p.cpf]) porCpf[p.cpf] = { cpf: p.cpf, nome: p.cliente || "", totalCompras: 0, totalGasto: 0 };
+    porCpf[p.cpf].nome = p.cliente || porCpf[p.cpf].nome; // fica com o nome mais recente
+    porCpf[p.cpf].totalCompras += 1;
+    porCpf[p.cpf].totalGasto += p.total;
+  }
+
+  const clientes = Object.values(porCpf).sort((a, b) => b.totalCompras - a.totalCompras);
+  res.json({ clientes });
+});
+
 // ---------- Estoque ----------
 router.get("/estoque", (req, res) => {
   const rows = db.prepare("SELECT * FROM estoque WHERE ativo = 1").all();
@@ -127,7 +176,7 @@ router.get("/pedidos", (req, res) => {
 });
 
 router.post("/pedidos", (req, res) => {
-  const { cliente, itens, formaPagamento } = req.body || {};
+  const { cliente, cpf, itens, formaPagamento, cupomCodigo } = req.body || {};
   if (!Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ error: "'itens' precisa ser uma lista com pelo menos 1 item" });
   }
@@ -143,30 +192,62 @@ router.post("/pedidos", (req, res) => {
     }
   }
 
+  // valida o cupom, se informado (aceita cupons cadastrados, ou o cupom
+  // especial de fidelidade "FIDELIDADE5", que não precisa estar cadastrado)
+  let percentualDesconto = 0;
+  let codigoAplicado = null;
+  if (cupomCodigo) {
+    const codigoNormalizado = cupomCodigo.trim().toUpperCase();
+    if (codigoNormalizado === "FIDELIDADE5") {
+      percentualDesconto = 5;
+      codigoAplicado = "FIDELIDADE5";
+    } else {
+      const cupom = db.prepare("SELECT * FROM cupons WHERE codigo = ? AND ativo = 1").get(codigoNormalizado);
+      if (!cupom) return res.status(400).json({ error: `Cupom "${codigoNormalizado}" não encontrado ou inativo` });
+      percentualDesconto = cupom.percentual;
+      codigoAplicado = cupom.codigo;
+    }
+  }
+
   try {
     db.exec("BEGIN");
 
-    let total = 0;
+    let subtotal = 0;
     const itensDetalhados = [];
     for (const item of itens) {
       const produto = db.prepare("SELECT * FROM estoque WHERE id = ?").get(item.produtoId);
-      const subtotal = produto.precoVenda * item.quantidade;
-      total += subtotal;
+      const itemSubtotal = produto.precoVenda * item.quantidade;
+      subtotal += itemSubtotal;
       itensDetalhados.push({
         produtoId: item.produtoId,
         produto: produto.produto,
         quantidade: item.quantidade,
         precoUnit: produto.precoVenda,
-        subtotal,
+        subtotal: itemSubtotal,
       });
       db.prepare("UPDATE estoque SET quantidade = quantidade - ? WHERE id = ?").run(item.quantidade, item.produtoId);
     }
 
+    const desconto = Math.round(subtotal * (percentualDesconto / 100) * 100) / 100;
+    const total = Math.round((subtotal - desconto) * 100) / 100;
+
     const id = newId();
     const dataAgora = new Date().toISOString();
     db.prepare(
-      `INSERT INTO pedidos (id, data, cliente, itens, total, formaPagamento, status) VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, dataAgora, cliente || "", JSON.stringify(itensDetalhados), total, formaPagamento || "", "concluido");
+      `INSERT INTO pedidos (id, data, cliente, cpf, itens, total, formaPagamento, status, desconto, cupomCodigo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      dataAgora,
+      cliente || "",
+      cpf || "",
+      JSON.stringify(itensDetalhados),
+      total,
+      formaPagamento || "",
+      "concluido",
+      desconto,
+      codigoAplicado
+    );
 
     db.prepare(`INSERT INTO caixa (id, data, tipo, descricao, valor, origem) VALUES (?, ?, ?, ?, ?, ?)`).run(
       newId(),
@@ -178,7 +259,7 @@ router.post("/pedidos", (req, res) => {
     );
 
     db.exec("COMMIT");
-    res.json({ ok: true, id, total, itens: itensDetalhados });
+    res.json({ ok: true, id, subtotal, desconto, total, cupomCodigo: codigoAplicado, itens: itensDetalhados });
   } catch (err) {
     try {
       db.exec("ROLLBACK");
